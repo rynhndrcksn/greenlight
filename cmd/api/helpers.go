@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -50,5 +52,51 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 	w.WriteHeader(status)
 	w.Write(js)
 
+	return nil
+}
+
+// readJSON is a helper for reading JSON requests.
+func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	// Decode the request body into the target destination.
+	err := json.NewDecoder(r.Body).Decode(dst)
+	if err != nil {
+		// If there's an error, we need to triage the type of error
+		// and return the right type of response...
+		var syntaxError *json.SyntaxError
+		var unmarshalTypeError *json.UnmarshalTypeError
+		var invalidUnmarshalError *json.InvalidUnmarshalError
+
+		switch {
+		// Not properly formatted JSON.
+		case errors.As(err, &syntaxError):
+			return fmt.Errorf("body contains badly-formed JSON (at character %d)", syntaxError.Offset)
+
+		// In some cases Decode() might return an io.ErrUnexpectedEOF for syntax errors.
+		// There is an open issues regarding this: https://github.com/golang/go/issues/25956.
+		case errors.Is(err, io.ErrUnexpectedEOF):
+			return errors.New("body contains badly-formed JSON")
+
+		// json.UnmarshalTypeError occurs when the JSON value is the wrong type for target destination.
+		// If the error relates to a specific field, we include that for easier client debugging.
+		case errors.As(err, &unmarshalTypeError):
+			if unmarshalTypeError.Field != "" {
+				return fmt.Errorf("body contains incorrect JSON type for field %q", unmarshalTypeError.Field)
+			}
+			return fmt.Errorf("body contains incorrect JSON type (at character %d)", unmarshalTypeError.Offset)
+
+		// Body is empty.
+		case errors.Is(err, io.EOF):
+			return errors.New("body must not be empty")
+
+		// If a non-nil pointer is passed to Decode(), we get an json.invalidUnmarshalError.
+		// In the event this happens, panicking is better than returning an error.
+		case errors.As(err, &invalidUnmarshalError):
+			panic(err)
+
+		// For anything else, just return the standard error.
+		default:
+			return err
+		}
+	}
 	return nil
 }
