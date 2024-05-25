@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -57,14 +58,24 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 
 // readJSON is a helper for reading JSON requests.
 func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	// Use http.MaxBytesReader() to limit the size of the request body to 1MB.
+	maxBytes := 1_048_576
+	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))
+
+	// Initialize json.Decoder and call the DisallowUnknownFields() method on it before decoding.
+	// Now any field that can't be mapped to the target destination raises an error.
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
 	// Decode the request body into the target destination.
-	err := json.NewDecoder(r.Body).Decode(dst)
+	err := dec.Decode(dst)
 	if err != nil {
 		// If there's an error, we need to triage the type of error
 		// and return the right type of response...
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
 		var invalidUnmarshalError *json.InvalidUnmarshalError
+		var maxBytesError *http.MaxBytesError
 
 		switch {
 		// Not properly formatted JSON.
@@ -88,6 +99,15 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 		case errors.Is(err, io.EOF):
 			return errors.New("body must not be empty")
 
+		// JSON contains a field that can't be mapped to target destination.
+		case strings.HasPrefix(err.Error(), "json: unknown field "):
+			fieldName := strings.TrimPrefix(err.Error(), "json: unknown field ")
+			return fmt.Errorf("body contains unknown key %s", fieldName)
+
+		// JSON is larger than our defined max bytes.
+		case errors.As(err, &maxBytesError):
+			return fmt.Errorf("body must not be larger that %d bytes", maxBytesError.Limit)
+
 		// If a non-nil pointer is passed to Decode(), we get an json.invalidUnmarshalError.
 		// In the event this happens, panicking is better than returning an error.
 		case errors.As(err, &invalidUnmarshalError):
@@ -97,6 +117,11 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 		default:
 			return err
 		}
+	}
+	// Make sure only 1 JSON body was sent.
+	err = dec.Decode(&struct{}{})
+	if !errors.Is(err, io.EOF) {
+		return errors.New("body must only contain a single JSON value")
 	}
 	return nil
 }
