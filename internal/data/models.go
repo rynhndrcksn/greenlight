@@ -5,12 +5,12 @@ import (
 	"errors"
 )
 
-// ErrRecordNotFound is a custom error for when a movie can't be found in the database.
 var (
 	ErrRecordNotFound = errors.New("record not found")
+	ErrEditConflict   = errors.New("edit conflict")
 )
 
-// Models struct contains the other models our application needs.
+// Models struct contain the other models our application needs.
 type Models struct {
 	Movies MovieModel
 }
