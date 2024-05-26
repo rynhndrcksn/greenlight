@@ -11,6 +11,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+
+	"github.com/rynhndrcksn/greenlight/internal/data"
 )
 
 // Hardcoded API version number, will later swap this out to be dynamic.
@@ -32,6 +34,7 @@ type config struct {
 type application struct {
 	config config
 	logger *slog.Logger
+	models data.Models
 }
 
 func main() {
@@ -61,6 +64,7 @@ func main() {
 	app := &application{
 		config: conf,
 		logger: logger,
+		models: data.NewModels(db),
 	}
 
 	// Initialize HTTP server using some sensible timeout settings.
