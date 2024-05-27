@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/rynhndrcksn/greenlight/internal/validator"
 )
 
 func (app *application) readIdParam(r *http.Request) (int64, error) {
@@ -33,7 +36,7 @@ type envelope map[string]any
 func (app *application) writeJSON(w http.ResponseWriter, status int, data envelope, headers http.Header) error {
 	// Marshal our data.
 	// Note: MarshalIndent generally runs ~65% slower, uses ~30% more memory, and makes 2 more heap allocations than Marshal.
-	// In most applications this isn't a concern. The differences equate to a few thousandths of a millisecond but improves readability.
+	// In most applications, this isn't a concern. The differences equate to a few thousandths of a millisecond but improves readability.
 	// If the API is resource-constrained or handles EXTREMELY high levels of traffic, then Marshal might be better.
 	js, err := json.MarshalIndent(data, "", "\t")
 	if err != nil {
@@ -43,7 +46,7 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 	// Append a newline to make it look better in the terminal.
 	js = append(js, '\n')
 
-	// At this point we know we won't encounter any more errors, so we can safely loop over the headers and add them.
+	// At this point, we know we won't encounter any more errors, so we can safely loop over the headers and add them.
 	for key, value := range headers {
 		w.Header()[key] = value
 	}
@@ -87,7 +90,7 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 		case errors.Is(err, io.ErrUnexpectedEOF):
 			return errors.New("body contains badly-formed JSON")
 
-		// json.UnmarshalTypeError occurs when the JSON value is the wrong type for target destination.
+		// A json.UnmarshalTypeError occurs when the JSON value is the wrong type for target destination.
 		// If the error relates to a specific field, we include that for easier client debugging.
 		case errors.As(err, &unmarshalTypeError):
 			if unmarshalTypeError.Field != "" {
@@ -95,7 +98,7 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 			}
 			return fmt.Errorf("body contains incorrect JSON type (at character %d)", unmarshalTypeError.Offset)
 
-		// Body is empty.
+		// The body is empty.
 		case errors.Is(err, io.EOF):
 			return errors.New("body must not be empty")
 
@@ -113,7 +116,7 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 		case errors.As(err, &invalidUnmarshalError):
 			panic(err)
 
-		// For anything else, just return the standard error.
+		// For anything else, return the standard error.
 		default:
 			return err
 		}
@@ -124,4 +127,46 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 		return errors.New("body must only contain a single JSON value")
 	}
 	return nil
+}
+
+// readString is a helper method for returning values from a query string or
+// a provided default if no matching query string was found.
+func (app *application) readString(qs url.Values, key string, defaultValue string) string {
+	// Extract the value from the query string.
+	s := qs.Get(key)
+
+	if s == "" {
+		return defaultValue
+	}
+
+	return s
+}
+
+// readCSV is a helper method for returning comma separated values from a query string
+func (app *application) readCSV(qs url.Values, key string, defaultValue []string) []string {
+	// Extract the values from the query string.
+	csv := qs.Get(key)
+
+	if csv == "" {
+		return defaultValue
+	}
+
+	return strings.Split(csv, ",")
+}
+
+// readInt is a helper method for returning integers from a query string.
+func (app *application) readInt(qs url.Values, key string, defaultValue int, v *validator.Validator) int {
+	s := qs.Get(key)
+
+	if s == "" {
+		return defaultValue
+	}
+
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		v.AddError(key, "must be an integer value")
+		return defaultValue
+	}
+
+	return i
 }
