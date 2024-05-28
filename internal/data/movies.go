@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lib/pq"
@@ -217,12 +218,16 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 	// Thanks to the default values we set for "title" and "genres", we can create
 	// a single SQL query that is flexible enough to allow for dynamic queries.
 	// Note about "WHERE": this allows us to use PostgreSQL's full-text search.
-	query := `
+	// We wrap everything in a fmt.Sprintf so we can dynamically determine
+	// what column to sort by and whether it's ASC or DESC.
+	// Also note that we sort by "id" as a fallback so the order items are returned
+	// is always the same.
+	query := fmt.Sprintf(`
         SELECT id, created_at, title, year, runtime, genres, version
         FROM movies
 		WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
   		AND (genres @> $2 OR $2 = '{}')     
-        ORDER BY id`
+        ORDER BY %s %s, id ASC`, filters.sortColumn(), filters.sortDirection())
 
 	// Create a context with a 3-second timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
