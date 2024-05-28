@@ -4,9 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"flag"
-	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"time"
 
@@ -75,21 +73,11 @@ func main() {
 		models: data.NewModels(db),
 	}
 
-	// Initialize HTTP server using some sensible timeout settings.
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", conf.port),
-		Handler:      app.routes(),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
+	err = app.serve()
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
 	}
-
-	// Start server.
-	logger.Info("Starting server...", slog.String("addr", srv.Addr), slog.String("env", conf.env))
-	err = srv.ListenAndServe()
-	logger.Error(err.Error())
-	os.Exit(1)
 }
 
 // openDB returns a sql.DB connection pool.
