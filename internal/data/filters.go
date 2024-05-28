@@ -25,9 +25,7 @@ func ValidateFilters(v *validator.Validator, f Filters) {
 	v.Check(validator.PermittedValue(f.Sort, f.SortSafeList...), "sort", "invalid sort value")
 }
 
-// Check that the client-provided Sort field matches one of the entries in our safe list,
-// and if it does, extract the column name from the Sort field by stripping the leading
-// hyphen character (if one exists).
+// sortColumn determines which column, if any, we're sorting by.
 func (f Filters) sortColumn() string {
 	for _, safeValue := range f.SortSafeList {
 		if f.Sort == safeValue {
@@ -40,12 +38,23 @@ func (f Filters) sortColumn() string {
 	panic("unsafe sort parameter: " + f.Sort)
 }
 
-// Return the sort direction ("ASC" or "DESC") depending on the prefix character of the
-// Sort field.
+// sortDirection determines whether we're sorting by "ASC" or "DESC".
 func (f Filters) sortDirection() string {
 	if strings.HasPrefix(f.Sort, "-") {
 		return "DESC"
 	}
 
 	return "ASC"
+}
+
+// limit determines pagination limit.
+func (f Filters) limit() int {
+	return f.PageSize
+}
+
+// offset determines pagination offset.
+func (f Filters) offset() int {
+	// Note: technically, we run the risk of an integer overflow by multiplying two integers.
+	// However, our validation rules (page_size <= 100 and page <= 10_000_000) prevent this.
+	return (f.Page - 1) * f.PageSize
 }

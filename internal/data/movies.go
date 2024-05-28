@@ -227,27 +227,29 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
         FROM movies
 		WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
   		AND (genres @> $2 OR $2 = '{}')     
-        ORDER BY %s %s, id ASC`, filters.sortColumn(), filters.sortDirection())
+        ORDER BY %s %s, id ASC
+        LIMIT $3 OFFSET $4`, filters.sortColumn(), filters.sortDirection())
 
 	// Create a context with a 3-second timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	// Use QueryContext() to execute the query.
-	// This returns a sql.Rows resultset containing the result.
-	rows, err := m.DB.QueryContext(ctx, query, title, pq.Array(genres))
+	// This returns a sql.Rows result set containing the result.
+	args := []any{title, pq.Array(genres), filters.limit(), filters.offset()}
+	rows, err := m.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 
-	// Importantly, defer a call to rows.Close() to ensure that the resultset is closed
+	// Importantly, defer a call to rows.Close() to ensure that the result set is closed
 	// before GetAll() returns.
 	defer rows.Close()
 
 	// Initialize an empty slice to hold the movie data.
 	var movies []*Movie
 
-	// Use rows.Next to iterate through the rows in the resultset.
+	// Use rows.Next to iterate through the rows in the result set.
 	for rows.Next() {
 		// Initialize an empty Movie struct to hold the data for an individual movie.
 		var movie Movie
