@@ -213,7 +213,7 @@ func (m MovieModel) Delete(id int64) error {
 }
 
 // GetAll retrieves all the movies from the database (as dictated by the Filters).
-func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*Movie, error) {
+func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*Movie, Metadata, error) {
 	// Construct the SQL query to retrieve all movie records.
 	// Thanks to the default values we set for "title" and "genres", we can create
 	// a single SQL query that is flexible enough to allow for dynamic queries.
@@ -223,7 +223,7 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 	// Also note that we sort by "id" as a fallback so the order items are returned
 	// is always the same.
 	query := fmt.Sprintf(`
-        SELECT id, created_at, title, year, runtime, genres, version
+        SELECT count(*) OVER(),id, created_at, title, year, runtime, genres, version
         FROM movies
 		WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
   		AND (genres @> $2 OR $2 = '{}')     
@@ -239,14 +239,15 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 	args := []any{title, pq.Array(genres), filters.limit(), filters.offset()}
 	rows, err := m.DB.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 
 	// Importantly, defer a call to rows.Close() to ensure that the result set is closed
 	// before GetAll() returns.
 	defer rows.Close()
 
-	// Initialize an empty slice to hold the movie data.
+	// Initialize some variables we need.
+	totalRecords := 0
 	var movies []*Movie
 
 	// Use rows.Next to iterate through the rows in the result set.
@@ -257,6 +258,7 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 		// Scan the values from the row into the Movie struct. Again, note that we're
 		// using the pq.Array() adapter on the genres field here.
 		err = rows.Scan(
+			&totalRecords, // Results from COUNT(*) OVER() is stored in column 1.
 			&movie.ID,
 			&movie.CreatedAt,
 			&movie.Title,
@@ -266,7 +268,7 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 			&movie.Version,
 		)
 		if err != nil {
-			return nil, err
+			return nil, Metadata{}, err
 		}
 
 		// Add the Movie struct to the slice.
@@ -276,9 +278,10 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 	// When the rows.Next() loop has finished, call rows.Err() to retrieve any error
 	// that was encountered during the iteration.
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 
 	// If everything went OK, then return the slice of movies.
-	return movies, nil
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+	return movies, metadata, nil
 }
