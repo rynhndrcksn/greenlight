@@ -216,11 +216,12 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 	// Construct the SQL query to retrieve all movie records.
 	// Thanks to the default values we set for "title" and "genres", we can create
 	// a single SQL query that is flexible enough to allow for dynamic queries.
+	// Note about "WHERE": this allows us to use PostgreSQL's full-text search.
 	query := `
         SELECT id, created_at, title, year, runtime, genres, version
         FROM movies
-        WHERE (LOWER(title) = LOWER($1) OR $1 = '') 
-        AND (genres @> $2 OR $2 = '{}')     
+		WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
+  		AND (genres @> $2 OR $2 = '{}')     
         ORDER BY id`
 
 	// Create a context with a 3-second timeout.
