@@ -13,11 +13,13 @@ var (
 // Models struct contain the other models our application needs.
 type Models struct {
 	Movies MovieModel
+	Users  UserModel
 }
 
 // NewModels returns a new Models struct.
 func NewModels(db *sql.DB) Models {
 	return Models{
 		Movies: MovieModel{DB: db},
+		Users:  UserModel{DB: db},
 	}
 }
