@@ -11,6 +11,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/rynhndrcksn/greenlight/internal/data"
+	"github.com/rynhndrcksn/greenlight/internal/mailer"
 )
 
 // Hardcoded API version number, will later swap this out to be dynamic.
@@ -31,13 +32,21 @@ type config struct {
 		burst   int
 		enabled bool
 	}
+	smtp struct {
+		host     string
+		port     int
+		username string
+		password string
+		sender   string
+	}
 }
 
-// Application struct that contains stuff we will want to use throughout out project.
+// Application struct that contains stuff we will want to use throughout our project.
 type application struct {
 	config config
 	logger *slog.Logger
 	models data.Models
+	mailer mailer.Mailer
 }
 
 func main() {
@@ -52,6 +61,11 @@ func main() {
 	flag.Float64Var(&conf.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
 	flag.IntVar(&conf.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&conf.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.StringVar(&conf.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
+	flag.IntVar(&conf.smtp.port, "smtp-port", 2525, "SMTP port")
+	flag.StringVar(&conf.smtp.username, "smtp-username", os.Getenv("GREENLIGHT_SMTP_USER"), "SMTP username")
+	flag.StringVar(&conf.smtp.password, "smtp-password", os.Getenv("GREENLIGHT_SMTP_PASS"), "SMTP password")
+	flag.StringVar(&conf.smtp.sender, "smtp-sender", "Greenlight <no-reply@domain.com>", "SMTP sender")
 	flag.Parse()
 
 	// Initialize a new structured logger that writes to stdout.
@@ -71,6 +85,7 @@ func main() {
 		config: conf,
 		logger: logger,
 		models: data.NewModels(db),
+		mailer: mailer.New(conf.smtp.host, conf.smtp.port, conf.smtp.username, conf.smtp.password, conf.smtp.sender),
 	}
 
 	err = app.serve()
