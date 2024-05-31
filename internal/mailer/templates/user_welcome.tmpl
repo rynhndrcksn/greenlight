@@ -2,11 +2,9 @@
 {{define "subject"}}Welcome to Greenlight!{{end}}
 
 {{define "plainBody"}}
-Hi,
+Hi {{.Name}},
 
 Thanks for signing up for a Greenlight account. We're excited to have you on board!
-
-For future reference, your user ID number is {{.ID}}.
 
 Thanks,
 
@@ -24,7 +22,6 @@ The Greenlight Team
 <body>
     <p>Hi {{.Name}},</p>
     <p>Thanks for signing up for a Greenlight account. We're excited to have you on board!</p>
-    <br>
     <p>Thanks,</p>
     <p>The Greenlight Team</p>
 </body>

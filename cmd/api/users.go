@@ -2,9 +2,10 @@ package main
 
 import (
 	"errors"
+	"net/http"
+
 	"github.com/rynhndrcksn/greenlight/internal/data"
 	"github.com/rynhndrcksn/greenlight/internal/validator"
-	"net/http"
 )
 
 // registerUserHandler handles registering new users.
@@ -62,6 +63,14 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
+		return
+	}
+
+	// Call the Send() method on our Mailer, passing in the user's email address,
+	// name of the template file, and the User struct containing the new user's data.
+	err = app.mailer.Send(user.Email, "user_welcome.tmpl", user)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
 		return
 	}
 
