@@ -12,16 +12,17 @@ import (
 )
 
 const (
-	ScopeActivation = "activation"
+	ScopeActivation     = "activation"
+	ScopeAuthentication = "authentication"
 )
 
 // Token struct contains the data needed for a single token.
 type Token struct {
-	Plaintext string
-	Hash      []byte
-	UserId    int64
-	Expiry    time.Time
-	Scope     string
+	Plaintext string    `json:"token"`
+	Hash      []byte    `json:"-"`
+	UserId    int64     `json:"-"`
+	Expiry    time.Time `json:"expiry"`
+	Scope     string    `json:"-"`
 }
 
 // generateToken generates a new token for user activation.
