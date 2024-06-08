@@ -182,7 +182,7 @@ func (app *application) background(fn func()) {
 		// Recover any panics that arise.
 		defer func() {
 			if err := recover(); err != nil {
-				app.logger.Error(fmt.Sprintf("%v%", err))
+				app.logger.Error(fmt.Sprintf("%v", err))
 			}
 		}()
 
