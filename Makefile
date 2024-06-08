@@ -2,6 +2,9 @@
 # Using a @ will suppress "make" from echoing out the command when it's ran.
 # Using .PHONE: <command> tells "make" that the name is something that should be executed, and not a file.
 
+# Include variables from the .envrc file
+include .envrc
+
 ## help: print this help message
 .PHONY: help
 help:
@@ -16,7 +19,7 @@ confirm:
 ## run/api: run the cmd/api application
 .PHONY: run/api
 run/api:
-	go run ./cmd/api
+	go run ./cmd/api -db-dsn=${GREENLIGHT_DB_DSN}
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
