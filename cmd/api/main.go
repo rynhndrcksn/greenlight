@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"expvar"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
@@ -16,10 +17,10 @@ import (
 
 	"github.com/rynhndrcksn/greenlight/internal/data"
 	"github.com/rynhndrcksn/greenlight/internal/mailer"
+	"github.com/rynhndrcksn/greenlight/internal/vcs"
 )
 
-// Hardcoded API version number, will later swap this out to be dynamic.
-const version = "1.0.0"
+var version = vcs.Version()
 
 // Config struct that contains all our project configurations.
 type config struct {
@@ -83,7 +84,13 @@ func main() {
 		conf.cors.trustedOrigins = strings.Fields(val)
 		return nil
 	})
+	displayVersion := flag.Bool("version", false, "Display version and exit")
 	flag.Parse()
+
+	if *displayVersion {
+		fmt.Printf("Version: %s\n", version)
+		os.Exit(0)
+	}
 
 	// Initialize a new structured logger that writes to stdout.
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
